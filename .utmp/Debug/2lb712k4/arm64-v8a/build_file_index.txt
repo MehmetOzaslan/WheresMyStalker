@@ -1,0 +1,2 @@
+C:\Users\mytur\Documents\KeyMaker\Im Begging You To Work\Library\PramData\AndroidApplicationController\Cache\com.unity.template.ar_mobile\gradle-project\unityLibrary\src\main\cpp\CMakeLists.txt
+C:\Users\mytur\Documents\KeyMaker\Im Begging You To Work\Library\PramData\AndroidApplicationController\Cache\com.unity.template.ar_mobile\gradle-project\unityLibrary\src\main\cpp\GameActivity\CMakeLists.txt
