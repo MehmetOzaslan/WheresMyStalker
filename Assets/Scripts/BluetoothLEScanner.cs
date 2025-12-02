@@ -1,5 +1,7 @@
 using UnityEngine;
 using System;
+using System.Collections;
+
 #if UNITY_ANDROID
 using UnityEngine.Android;
 #endif
@@ -15,15 +17,46 @@ public class BluetoothLEScanner : MonoBehaviour
     private AndroidJavaObject unityActivity;
 
     // Events for Unity
-    public event Action<string, string, int, int, bool> OnDeviceFoundEvent; // address, name, rssi, txPower, isConnectable
+    public event Action<string, string, int, int, bool, string> OnDeviceFoundEvent; // address, name, rssi, txPower, isConnectable, (raw data)
+
+    public event Action<string> OnRawDeviceInfoReceivedEvent;
+
     public event Action<string> OnScanFailed;
     public event Action OnScanStarted;
     public event Action OnScanStopped;
 
     private bool permissionsRequested = false;
 
+#if UNITY_EDITOR
+    public bool useFakeData = true;
+
+    IEnumerator FakeDataCoroutine()
+    {
+        string[] fakeAddresses = new string[] { "1","2","3","4","5","6","7","8","9","10" };
+        while (true)
+        {
+
+            float RSSI = UnityEngine.Random.Range(-90, -20);
+            int txPower = UnityEngine.Random.Range(-10, 10);
+            bool isConnectable = UnityEngine.Random.Range(0, 2) == 1;
+            string address = fakeAddresses[UnityEngine.Random.Range(0, fakeAddresses.Length)];
+            string rawData = $"{address}|{name}|{(int)RSSI}|{txPower}|{isConnectable}";
+            OnDeviceFoundEvent?.Invoke(address, name, (int)RSSI, txPower, isConnectable, rawData);
+            yield return new WaitForSeconds(UnityEngine.Random.Range(0.1f, 0.2f));
+        }
+    }
+
+#endif
+
+
     void Start()
     {
+#if UNITY_EDITOR
+        if (useFakeData)
+        {
+            StartCoroutine(FakeDataCoroutine());
+        }
+#endif
         RequestPermissions();
     }
 
@@ -99,6 +132,7 @@ public class BluetoothLEScanner : MonoBehaviour
         }
     }
 #endif
+
 
     void Initialize()
     {
@@ -220,8 +254,10 @@ public class BluetoothLEScanner : MonoBehaviour
     /// </summary>
     public void OnDeviceFound(string deviceInfo)
     {
+
         try
         {
+            OnRawDeviceInfoReceivedEvent?.Invoke(deviceInfo);
             string[] parts = deviceInfo.Split('|');
             if (parts.Length >= 5)
             {
@@ -234,7 +270,7 @@ public class BluetoothLEScanner : MonoBehaviour
                 Debug.Log($"Device found: {name} ({address}) RSSI: {rssi} dBm, TX Power: {txPower} dBm, Connectable: {isConnectable}");
 
                 // Trigger Unity event
-                OnDeviceFoundEvent?.Invoke(address, name, rssi, txPower, isConnectable);
+                OnDeviceFoundEvent?.Invoke(address, name, rssi, txPower, isConnectable, deviceInfo);
             }
             else
             {

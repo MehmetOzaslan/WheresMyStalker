@@ -2,6 +2,8 @@ using UnityEngine;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine.UI;
+using System;   
+using System.Collections;
 public class MacUIGenerator : MonoBehaviour
 {
 
@@ -18,6 +20,7 @@ public class MacUIGenerator : MonoBehaviour
     
     private Button currentlySelectedButton;
     private Dictionary<string, Button> deviceButtons = new Dictionary<string, Button>();
+    private Dictionary<string, Slider> deviceSliders = new Dictionary<string, Slider>();
     
     [Header("Selection Settings")]
     public Color selectedColor = Color.magenta;
@@ -26,11 +29,45 @@ public class MacUIGenerator : MonoBehaviour
     [Header("Global View Button")]
     public string defaultButtonText = "Global View";
 
-    public void OnDeviceUpdate(string address, string name, int rssi, int txPower, bool isConnectable){
+
+    public float sliderUpdateInterval = 0.2f;
+    public int sliderSampleSize = 5;
+
+    void UpdateSlider(string address){
+        Slider slider = deviceSliders[address];
+        if (slider != null)
+        {
+            float percentRSSI = bluetoothLogger.PercentRSSI(bluetoothLogger.GetAverageSpecificRSSISampled(address, sliderSampleSize));
+            slider.value = percentRSSI;
+            // Debug.Log($"MacUIGenerator: UpdateSlider {address} {percentRSSI}");
+        }
+    }
+
+    private IEnumerator UpdateSlidersCoroutine()
+    {
+        while (true)
+        {
+            foreach (string address in deviceAddresses)
+            {
+                UpdateSlider(address);
+            }
+            yield return new WaitForSeconds(0.2f);
+        }
+    }
+    
+    
+    public void OnDeviceUpdate(string address, string name, int rssi, int txPower, bool isConnectable, string rawData){
         if (!deviceAddresses.Contains(address)){
             deviceAddresses.Add(address);
             GameObject buttonObj = Instantiate(buttonPrefab, buttonContainer.transform);
             buttonObj.GetComponentInChildren<TextMeshProUGUI>().text = address;
+            Slider slider = buttonObj.GetComponentInChildren<Slider>();
+            if (slider != null)
+            {
+                slider.value = 0;
+                deviceSliders[address] = slider;
+            }
+
             
             Button button = buttonObj.GetComponent<Button>();
             if (button != null)
@@ -39,7 +76,7 @@ public class MacUIGenerator : MonoBehaviour
                 deviceButtons[address] = button;
                 SetButtonColor(button, normalColor);
             }
-        }
+        }                
     }
     
     private void OnButtonClicked(string address, Button clickedButton)
@@ -52,7 +89,9 @@ public class MacUIGenerator : MonoBehaviour
         currentlySelectedButton = clickedButton;
         SetButtonColor(clickedButton, selectedColor);
         
-        Debug.Log($"Selected device: {address}");
+        // Debug.Log($"Selected device: {address}");
+
+        bluetoothLogger.OnMACSelected(address);
     }
     
     private void SetButtonColor(Button button, Color color)
@@ -68,6 +107,8 @@ public class MacUIGenerator : MonoBehaviour
     {
         CreateDefaultButton();
 
+        StartCoroutine(UpdateSlidersCoroutine());
+
         if (scanner == null)
         {
             scanner = FindFirstObjectByType<BluetoothLEScanner>();
@@ -75,7 +116,7 @@ public class MacUIGenerator : MonoBehaviour
         if (scanner != null)
         {
             scanner.OnDeviceFoundEvent += OnDeviceUpdate;
-            Debug.Log("BluetoothLogger: Connected to BluetoothLEScanner");
+            // Debug.Log("BluetoothLogger: Connected to BluetoothLEScanner");
         }
     }
     

@@ -1,0 +1,1 @@
+UnityBLEScanner.kt is compiled in Plugins/Android/unity-ble-library-debug.aar

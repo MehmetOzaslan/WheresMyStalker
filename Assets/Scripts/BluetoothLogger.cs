@@ -2,6 +2,7 @@ using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 using System;
+using System.IO;
 
 public struct DataPoint{
     public string address;
@@ -11,42 +12,60 @@ public struct DataPoint{
     public bool isConnectable;
     public float local_x;
     public float local_y;
+    public float local_z;
     public double latitude;
     public double longitude;
     public double timestamp;
+    public string rawData; // This is actually disgusting
 }
 
 
+// Logs data continously and publishes to the datamap. 
+// Data is also published in the OnDataPointLoggedEvent.
 public class BluetoothLogger : MonoBehaviour
 {
-    public GameObject _prefabQuad;
-    public Gradient colorGradient = new Gradient();
-    public float quadOpacity = 0.50f;
-    
-    public float fade_distance = 1.0f;
-    public AnimationCurve fade_curve = new AnimationCurve();
-
     [Header("Bluetooth Scanner")]
     public BluetoothLEScanner scanner; 
-    public Dictionary<Vector3Int, GameObject> _quadMap = new Dictionary<Vector3Int, GameObject>();
     public Dictionary<Vector3Int, List<DataPoint>> _dataMap = new Dictionary<Vector3Int, List<DataPoint>>();
+    public Dictionary<string, int> mac_id_map = new Dictionary<string, int>(); // TODO: Convert DataPoint to use proper indexing rather than raw strings.
 
     public event Action<DataPoint> OnDataPointLoggedEvent;
+
+    public event Action<String> OnFilteredAddressChangedEvent;
+
+
 
     public string filteredAddress = "default";
 
     public void OnMACSelected(string address){
         Debug.Log($"BluetoothLogger: MAC {address} selected");
         filteredAddress = address;
+        OnFilteredAddressChangedEvent?.Invoke(address);
+    }
+
+
+
+    public void SaveData(){
+        Debug.Log($"BluetoothLogger: Saving data to {Application.persistentDataPath + "/data.csv"}");
+        string filePath = Application.persistentDataPath + "/data.csv";
+
+        using (StreamWriter writer = new StreamWriter(filePath, false))
+        {
+            writer.WriteLine("address,name,rssi,txPower,isConnectable,local_x,local_y,local_z,latitude,longitude,timestamp,rawData");
+        }
+        
+        foreach (var data in _dataMap){
+            foreach (var dataPoint in data.Value){
+                using (StreamWriter writer = new StreamWriter(filePath, true))
+                {   
+                    writer.WriteLine($"{dataPoint.address},{dataPoint.name},{dataPoint.rssi},{dataPoint.txPower},{dataPoint.isConnectable},{dataPoint.local_x},{dataPoint.local_y},{dataPoint.local_z},{dataPoint.latitude},{dataPoint.longitude},{dataPoint.timestamp},{dataPoint.rawData}");
+                }
+            }
+        }
     }
 
     void Start()
     {
-        if(fade_curve.keys.Length == 0){
-            fade_curve.AddKey(0.0f, 0.0f);
-            fade_curve.AddKey(1.0f, 1.0f);
-        }
-
         if (scanner == null)
         {
             scanner = FindFirstObjectByType<BluetoothLEScanner>();
@@ -55,6 +74,7 @@ public class BluetoothLogger : MonoBehaviour
         if (scanner != null)
         {
             scanner.OnDeviceFoundEvent += OnDeviceUpdate;
+            // scanner.OnRawDeviceInfoReceivedEvent += OnRawDeviceInfoReceived;
             Debug.Log("BluetoothLogger: Connected to BluetoothLEScanner");
         }
         else
@@ -65,6 +85,10 @@ public class BluetoothLogger : MonoBehaviour
         // Start location service
         StartCoroutine(StartLocationService());
     }
+
+    // public void OnRawDeviceInfoReceived(string rawData){
+    //     Debug.Log($"BluetoothLogger: OnDeviceFoundRawData {rawData}");
+    // }
     
     IEnumerator StartLocationService()
     {
@@ -108,6 +132,7 @@ public class BluetoothLogger : MonoBehaviour
             scanner.OnDeviceFoundEvent -= OnDeviceUpdate;
         }
         
+        SaveData();
         // Stop location service
         if (Input.location.isEnabledByUser && Input.location.status == LocationServiceStatus.Running)
         {
@@ -116,49 +141,20 @@ public class BluetoothLogger : MonoBehaviour
         }
     }
 
-    float update_frequency = 0.1f;
-    float time_since_last_update = 0.0f;
-
-    void Update()
-    {
-        time_since_last_update += Time.deltaTime;
-        if(time_since_last_update >= update_frequency){
-            Debug.Log($"BluetoothLogger: Transform position: {transform.position}");
-            Debug.Log($"BluetoothLogger: Quad position: {GetVector3Hash(transform.position)}");
-            Debug.Log($"BluetoothLogger: Quad map contains key: {_quadMap.ContainsKey(GetVector3Hash(transform.position))}");
-        }
-    
-        if(!_quadMap.ContainsKey(GetVector3Hash(transform.position))){
-            CreateQuad(GetVector3Hash(transform.position));
-            Debug.Log("BluetoothLogger: Created quad at position");
-        }
-        else{
-            GameObject quad = _quadMap[GetVector3Hash(transform.position)];
-            SetQuadColor(quad, colorGradient.Evaluate(PercentRSSI(GetAverageGlobalRSSI(GetVector3Hash(transform.position)))));
-        }
-
-        // Not very performant but currently not an issue.
-        foreach (var quad in _quadMap){
-            float distance = Vector3.Distance(transform.position, quad.Value.transform.position);
-            float fade = fade_curve.Evaluate(Mathf.Clamp01(distance / fade_distance));
-            Color color = quad.Value.GetComponent<Renderer>().material.color;
-            color.a = fade;
-            quad.Value.GetComponent<Renderer>().material.color = color;
-        }
-    }
-
 
     // Rough Estimate since there's no absolute RSSI value
-    float rssi_min = -100;
-    float rssi_max = -30;
-    public float PercentRSSI(int rssi){
+    float rssi_min = -110;
+    float rssi_max = -35;
 
-        float T = (rssi - rssi_min) / (rssi_max - rssi_min);
-        return Mathf.Clamp01(Mathf.Abs(T));
+    public float PercentRSSI(int rssi, double perfectRssi = -20.0, double worstRssi = -90.0)
+    {
+        float signalQuality = (rssi - rssi_min) / (rssi_max - rssi_min);
+
+        return (float)signalQuality;
     }
 
 
-    public void OnDeviceUpdate(string address, string name, int rssi, int txPower, bool isConnectable){
+    public void OnDeviceUpdate(string address, string name, int rssi, int txPower, bool isConnectable, string rawData){
         DataPoint dataPoint = new DataPoint();
         dataPoint.address = address;
         dataPoint.name = name;
@@ -167,6 +163,9 @@ public class BluetoothLogger : MonoBehaviour
         dataPoint.isConnectable = isConnectable;
         dataPoint.local_x = transform.position.x;
         dataPoint.local_y = transform.position.y;
+        dataPoint.local_z = transform.position.z;
+        dataPoint.rawData = rawData;
+        
         if (Input.location.status == LocationServiceStatus.Running)
         {
             dataPoint.latitude = Input.location.lastData.latitude;
@@ -187,74 +186,122 @@ public class BluetoothLogger : MonoBehaviour
         }
         _dataMap[position].Add(dataPoint);
 
-        OnDataPointLoggedEvent?.Invoke(dataPoint);
-
-
-        if(filteredAddress == "default" || filteredAddress == "" || filteredAddress == null){
-            GameObject quad = GetObjectAtPosition(transform.position);
-            int averageGlobalRSSI = GetAverageGlobalRSSI(position);
-            SetQuadColor(quad, colorGradient.Evaluate(PercentRSSI(averageGlobalRSSI)));
-        }
-        else{
-            GameObject quad = GetObjectAtPosition(transform.position);
-            int averageSpecificRSSI = GetAverageSpecificRSSI(filteredAddress);
-            SetQuadColor(quad, colorGradient.Evaluate(PercentRSSI(averageSpecificRSSI)));
-        }
-        Debug.Log($"BluetoothLogger: OnDeviceUpdate {address} {name} {rssi} {txPower} {isConnectable}");
-    }
-
-    void SetQuadColor(GameObject quad, Color color){
-        Renderer renderer = quad.GetComponent<Renderer>();
-        if (renderer != null)
+        if(!mac_id_map.ContainsKey(address))
         {
-            color.a = quadOpacity;
-            renderer.material.color = color;
+            mac_id_map[address] = mac_id_map.Count;
         }
+        OnDataPointLoggedEvent?.Invoke(dataPoint);
+            
+        // Debug.Log($"BluetoothLogger: OnDeviceUpdate {address} {name} {rssi} {txPower} {isConnectable}");
     }
 
-    public int hash_multiplier = 8;
+    public static int hash_multiplier = 7;
     
-    public Vector3Int GetVector3Hash(Vector3 position){
+    public static Vector3Int GetVector3Hash(Vector3 position){
         return new Vector3Int(
             Mathf.FloorToInt(position.x * hash_multiplier), 
-            Mathf.FloorToInt(position.y * hash_multiplier), 
+            Mathf.FloorToInt(position.y),
             Mathf.FloorToInt(position.z * hash_multiplier)
         );
     }
-    
-    Vector3 GetWorldPositionFromHash(Vector3Int hashPosition){
-        float cellSize = 1f / hash_multiplier;
+
+    public static Vector3 GetWorldPositionFromHash(Vector3Int hashPosition){
+        float cellSize = 1f / (float)hash_multiplier;
         return new Vector3(
             hashPosition.x * cellSize + cellSize * 0.5f,
-            hashPosition.y * cellSize + cellSize * 0.5f,
+            hashPosition.y + 0.5f,
             hashPosition.z * cellSize + cellSize * 0.5f
         );
     }
+    
+    public int GetRSSIAtPositionFiltered(Vector3Int position){
 
-    GameObject GetObjectAtPosition(Vector3 position){
-        if(_quadMap.ContainsKey(GetVector3Hash(position))){
-            return _quadMap[GetVector3Hash(position)];
+        if(filteredAddress == "default" || filteredAddress == "" || filteredAddress == null){
+            return GetAverageGlobalRSSI(position);
         }
         else{
-            CreateQuad(GetVector3Hash(position));
-            return _quadMap[GetVector3Hash(position)];
+            return GetAverageSpecificRSSIAtPosition(position, filteredAddress);
         }
     }
+    
+    public int GetAverageSpecificRSSIAtPosition(Vector3Int position, string address){
+        if (!_dataMap.ContainsKey(position)){
+            return (int)rssi_min;
+        }
 
-    void CreateQuad(Vector3Int position){
-        if (_prefabQuad == null)
+        List<DataPoint> dataPoints = _dataMap[position];
+        float sum = 0;
+        int count = 0;
+        foreach (var dataPoint in dataPoints){
+            if (dataPoint.address == address){
+                sum += dataPoint.rssi;
+                count++;
+            }
+        }
+
+        if (count == 0){
+            return (int)rssi_min;
+        }
+        return (int)(sum / count);
+    }
+    
+    public int GetRSSIAtPositionSampledAndFiltered(Vector3Int position, int sample_size = 5)
+    {
+        if(filteredAddress == "default" || string.IsNullOrEmpty(filteredAddress))
         {
-            Debug.LogError("BluetoothLogger: _prefabQuad is not assigned! Cannot create quad.");
-            return;
+            if (!_dataMap.ContainsKey(position))
+                return (int)rssi_min;
+
+            List<DataPoint> dataPoints = _dataMap[position];
+            if (dataPoints.Count == 0)
+                return (int)rssi_min;
+
+            dataPoints.Sort((a, b) => a.timestamp.CompareTo(b.timestamp));
+            
+            int samplesToTake = Mathf.Min(sample_size, dataPoints.Count);
+            float sum = 0f;
+            
+            for (int i = dataPoints.Count - samplesToTake; i < dataPoints.Count; i++)
+            {
+                sum += dataPoints[i].rssi;
+            }
+            
+            return (int)(sum / samplesToTake);
         }
-        
-        Vector3 pos = GetWorldPositionFromHash(position);
-        GameObject quad = Instantiate(_prefabQuad, pos, Quaternion.identity);
-        quad.transform.localScale = new Vector3(1/((float)hash_multiplier+1), 1/((float)hash_multiplier+1), 1/((float)hash_multiplier+1));    
-        _quadMap.Add(position, quad);
+        else
+        {
+            if (!_dataMap.ContainsKey(position))
+                return (int)rssi_min;
+
+            List<DataPoint> filteredPoints = new List<DataPoint>();
+            foreach (var dataPoint in _dataMap[position])
+            {
+                if (dataPoint.address == filteredAddress)
+                {
+                    filteredPoints.Add(dataPoint);
+                }
+            }
+            
+            if (filteredPoints.Count == 0)
+                return (int)rssi_min;
+
+            filteredPoints.Sort((a, b) => a.timestamp.CompareTo(b.timestamp));
+            
+            int samplesToTake = Mathf.Min(sample_size, filteredPoints.Count);
+            float sum = 0f;
+            
+            for (int i = filteredPoints.Count - samplesToTake; i < filteredPoints.Count; i++)
+            {
+                sum += filteredPoints[i].rssi;
+            }
+            
+            return (int)(sum / samplesToTake);
+        }
     }
 
-    int GetAverageGlobalRSSI(Vector3Int position){
+
+
+    public int GetAverageGlobalRSSI(Vector3Int position){
         if (!_dataMap.ContainsKey(position)){
             return (int)rssi_min;
         }
@@ -267,7 +314,7 @@ public class BluetoothLogger : MonoBehaviour
         return (int)(sum / dataPoints.Count);
     }
 
-    int GetAverageSpecificRSSI(string address){
+    public int GetAverageSpecificRSSI(string address){
 
         float sum = 0;
         int count = 0;
@@ -284,6 +331,34 @@ public class BluetoothLogger : MonoBehaviour
             return (int)rssi_min;
         }
         return (int)(sum / count);
+    }
+
+    public int GetAverageSpecificRSSISampled(string address, int sample_size = 5){
+        List<DataPoint> matchingPoints = new List<DataPoint>();
+        
+        foreach (var data in _dataMap){
+            foreach (var dataPoint in data.Value){
+                if (dataPoint.address == address){
+                    matchingPoints.Add(dataPoint);
+                }
+            }
+        }
+
+        if (matchingPoints.Count == 0){
+            return (int)rssi_min;
+        }
+        
+        matchingPoints.Sort((a, b) => a.timestamp.CompareTo(b.timestamp));
+        
+        int samplesToTake = Mathf.Min(sample_size, matchingPoints.Count);
+        float sum = 0f;
+        
+        for (int i = matchingPoints.Count - samplesToTake; i < matchingPoints.Count; i++)
+        {
+            sum += matchingPoints[i].rssi;
+        }
+        
+        return (int)(sum / samplesToTake);
     }
 
 }
