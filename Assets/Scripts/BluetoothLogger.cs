@@ -5,6 +5,7 @@ using System;
 using System.IO;
 
 public struct DataPoint{
+    public uint point_id;
     public string address;
     public string name;
     public int rssi;
@@ -28,6 +29,10 @@ public class BluetoothLogger : MonoBehaviour
     public BluetoothLEScanner scanner; 
     public Dictionary<Vector3Int, List<DataPoint>> _dataMap = new Dictionary<Vector3Int, List<DataPoint>>();
     public Dictionary<string, int> mac_id_map = new Dictionary<string, int>(); // TODO: Convert DataPoint to use proper indexing rather than raw strings.
+    public Dictionary<string, string> address_name_map = new Dictionary<string, string>();
+
+    // this is fairly nasty
+    public Dictionary<string, List<string>> address_raw_data_map = new Dictionary<string, List<string>>();
 
     public event Action<DataPoint> OnDataPointLoggedEvent;
 
@@ -154,8 +159,14 @@ public class BluetoothLogger : MonoBehaviour
     }
 
 
+    static uint point_id_counter = 0;
+
+
+
+
     public void OnDeviceUpdate(string address, string name, int rssi, int txPower, bool isConnectable, string rawData){
         DataPoint dataPoint = new DataPoint();
+        dataPoint.point_id = point_id_counter++;
         dataPoint.address = address;
         dataPoint.name = name;
         dataPoint.rssi = rssi;
@@ -194,6 +205,7 @@ public class BluetoothLogger : MonoBehaviour
             
         // Debug.Log($"BluetoothLogger: OnDeviceUpdate {address} {name} {rssi} {txPower} {isConnectable}");
     }
+
 
     public static int hash_multiplier = 7;
     

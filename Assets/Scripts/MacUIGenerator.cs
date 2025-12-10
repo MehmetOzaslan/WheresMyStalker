@@ -4,11 +4,21 @@ using TMPro;
 using UnityEngine.UI;
 using System;   
 using System.Collections;
+using System.Diagnostics.Tracing;
+using UnityEngine.Rendering.Universal;
+
+
+
+// TODO: I have a feeling this is where a lot of performance issues are coming from.
+// Maybe use some pooling for the prefabs. 
 public class MacUIGenerator : MonoBehaviour
 {
 
     [Header("Bluetooth Scanner")]
     public BluetoothLEScanner scanner; 
+
+// TODO Pooling
+    // public BatchedPool batchedPool;
 
     public GameObject buttonPrefab;
 
@@ -19,6 +29,7 @@ public class MacUIGenerator : MonoBehaviour
     public HashSet<string> deviceAddresses = new HashSet<string>();
     
     private Button currentlySelectedButton;
+
     private Dictionary<string, Button> deviceButtons = new Dictionary<string, Button>();
     private Dictionary<string, Slider> deviceSliders = new Dictionary<string, Slider>();
     
@@ -133,11 +144,5 @@ public class MacUIGenerator : MonoBehaviour
             currentlySelectedButton = button;
             SetButtonColor(button, selectedColor);
         }
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
     }
 }

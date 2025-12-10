@@ -8,7 +8,6 @@ using UnityEngine.Android;
 
 /// <summary>
 /// Unity C# bridge for Android Bluetooth LE Scanner
-/// Attach this to a GameObject named "BluetoothLEScanner" (or change the name and call setUnityGameObjectName)
 /// </summary>
 public class BluetoothLEScanner : MonoBehaviour
 {
@@ -18,9 +17,7 @@ public class BluetoothLEScanner : MonoBehaviour
 
     // Events for Unity
     public event Action<string, string, int, int, bool, string> OnDeviceFoundEvent; // address, name, rssi, txPower, isConnectable, (raw data)
-
     public event Action<string> OnRawDeviceInfoReceivedEvent;
-
     public event Action<string> OnScanFailed;
     public event Action OnScanStarted;
     public event Action OnScanStopped;
@@ -136,18 +133,16 @@ public class BluetoothLEScanner : MonoBehaviour
 
     void Initialize()
     {
+        // Gets the library instance for the bluetooth scanner
         try
         {
-            // Get Unity's current activity
             AndroidJavaClass unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
             unityActivity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity");
             AndroidJavaObject context = unityActivity.Call<AndroidJavaObject>("getApplicationContext");
 
-            // Get the scanner instance
             AndroidJavaClass scannerClass = new AndroidJavaClass("com.unity_lib_helper.unityble.UnityBLEScanner");
             scannerPlugin = scannerClass.CallStatic<AndroidJavaObject>("getInstance", context);
 
-            // Initialize
             bool initialized = scannerClass.CallStatic<bool>("initialize", context);
 
             if (initialized)
@@ -230,28 +225,9 @@ public class BluetoothLEScanner : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Set the GameObject name that receives callbacks (if different from "BluetoothLEScanner")
-    /// </summary>
-    public void SetUnityGameObjectName(string name)
-    {
-        try
-        {
-            AndroidJavaClass scannerClass = new AndroidJavaClass("com.unity_lib_helper.unityble.UnityBLEScanner");
-            scannerClass.CallStatic("setUnityGameObjectName", name);
-        }
-        catch (Exception e)
-        {
-            Debug.LogError($"Error setting GameObject name: {e.Message}");
-        }
-    }
 
-    // ===== Callbacks from Android (called via UnitySendMessage) =====
-
-    /// <summary>
-    /// Called by Android when a device is found
-    /// Format: "address|name|rssi|txPower|isConnectable"
-    /// </summary>
+    /// Called by Android when a device sends a packet
+    /// Format: "address|name|rssi|txPower|isConnectable (raw data)"
     public void OnDeviceFound(string deviceInfo)
     {
 
@@ -269,7 +245,6 @@ public class BluetoothLEScanner : MonoBehaviour
 
                 Debug.Log($"Device found: {name} ({address}) RSSI: {rssi} dBm, TX Power: {txPower} dBm, Connectable: {isConnectable}");
 
-                // Trigger Unity event
                 OnDeviceFoundEvent?.Invoke(address, name, rssi, txPower, isConnectable, deviceInfo);
             }
             else
@@ -284,27 +259,18 @@ public class BluetoothLEScanner : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Called by Android when scan fails
-    /// </summary>
     public void OnScanFailedCallback(string error)
     {
         Debug.LogError($"BLE Scan failed: {error}");
         OnScanFailed?.Invoke(error);
     }
 
-    /// <summary>
-    /// Called by Android when scan starts
-    /// </summary>
     public void OnScanStartedCallback(string status)
     {
         Debug.Log($"BLE Scan started: {status}");
         OnScanStarted?.Invoke();
     }
 
-    /// <summary>
-    /// Called by Android when scan stops
-    /// </summary>
     public void OnScanStoppedCallback(string status)
     {
         Debug.Log($"BLE Scan stopped: {status}");
@@ -316,15 +282,6 @@ public class BluetoothLEScanner : MonoBehaviour
         if (IsScanning())
         {
             StopScan();
-        }
-    }
-
-    void OnApplicationPause(bool pauseStatus)
-    {
-        if (pauseStatus && IsScanning())
-        {
-            // Optionally stop scanning when app is paused
-            // StopScan();
         }
     }
 }
