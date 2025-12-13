@@ -20,7 +20,6 @@ public struct DataPoint{
     public string rawData; // This is actually disgusting
 }
 
-
 // Logs data continously and publishes to the datamap. 
 // Data is also published in the OnDataPointLoggedEvent.
 public class BluetoothLogger : MonoBehaviour
@@ -97,7 +96,6 @@ public class BluetoothLogger : MonoBehaviour
     
     IEnumerator StartLocationService()
     {
-        // Check if location is enabled by user
         if (!Input.location.isEnabledByUser)
         {
             Debug.LogWarning("BluetoothLogger: Location services are not enabled by user. Please enable in device settings.");
@@ -106,7 +104,7 @@ public class BluetoothLogger : MonoBehaviour
 
         Input.location.Start(0.5f, 0.5f);
         
-        int maxWait = 20; // 20 seconds max wait
+        int maxWait = 20;
         while (Input.location.status == LocationServiceStatus.Initializing && maxWait > 0)
         {
             yield return new WaitForSeconds(1);

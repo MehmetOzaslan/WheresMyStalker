@@ -113,5 +113,11 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
+# Unity XR Content
+/[Aa]ssets/[Uu]nityXRContent/
+
+# Data files
+data.csv
+
 
 

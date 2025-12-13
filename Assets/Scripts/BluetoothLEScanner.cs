@@ -24,36 +24,11 @@ public class BluetoothLEScanner : MonoBehaviour
 
     private bool permissionsRequested = false;
 
-#if UNITY_EDITOR
-    public bool useFakeData = true;
 
-    IEnumerator FakeDataCoroutine()
-    {
-        string[] fakeAddresses = new string[] { "1","2","3","4","5","6","7","8","9","10" };
-        while (true)
-        {
-
-            float RSSI = UnityEngine.Random.Range(-90, -20);
-            int txPower = UnityEngine.Random.Range(-10, 10);
-            bool isConnectable = UnityEngine.Random.Range(0, 2) == 1;
-            string address = fakeAddresses[UnityEngine.Random.Range(0, fakeAddresses.Length)];
-            string rawData = $"{address}|{name}|{(int)RSSI}|{txPower}|{isConnectable}";
-            OnDeviceFoundEvent?.Invoke(address, name, (int)RSSI, txPower, isConnectable, rawData);
-            yield return new WaitForSeconds(UnityEngine.Random.Range(0.1f, 0.2f));
-        }
-    }
-
-#endif
 
 
     void Start()
     {
-#if UNITY_EDITOR
-        if (useFakeData)
-        {
-            StartCoroutine(FakeDataCoroutine());
-        }
-#endif
         RequestPermissions();
     }
 
