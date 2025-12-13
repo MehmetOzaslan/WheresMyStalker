@@ -6,6 +6,7 @@ using System;
 using System.Collections;
 using System.Diagnostics.Tracing;
 using UnityEngine.Rendering.Universal;
+using Unity.Tutorials.Core.Editor;
 
 
 
@@ -19,6 +20,8 @@ public class MacUIGenerator : MonoBehaviour
 
 // TODO Pooling
     // public BatchedPool batchedPool;
+
+    public RawDataParser rawDataParser;
 
     public GameObject buttonPrefab;
 
@@ -71,7 +74,6 @@ public class MacUIGenerator : MonoBehaviour
         if (!deviceAddresses.Contains(address)){
             deviceAddresses.Add(address);
             GameObject buttonObj = Instantiate(buttonPrefab, buttonContainer.transform);
-            buttonObj.GetComponentInChildren<TextMeshProUGUI>().text = address;
             Slider slider = buttonObj.GetComponentInChildren<Slider>();
             if (slider != null)
             {
@@ -79,14 +81,47 @@ public class MacUIGenerator : MonoBehaviour
                 deviceSliders[address] = slider;
             }
 
+
+            MacUIBinder binder = buttonObj.GetComponent<MacUIBinder>();
+
             
             Button button = buttonObj.GetComponent<Button>();
             if (button != null)
             {
+                binder.button = button;
                 button.onClick.AddListener(() => OnButtonClicked(address, button));
                 deviceButtons[address] = button;
                 SetButtonColor(button, normalColor);
             }
+            
+            RawDataParser.CompanyData data = rawDataParser.GetCompanyData(rawData);
+            string findMyTag = "";
+            string companyName = "";
+            
+            try
+            {
+                findMyTag = rawDataParser.GetFindMyDevice(data);
+                companyName = rawDataParser.GetCompanyName(data) + " " + findMyTag;
+            }
+            catch (System.Exception ex)
+            {
+                UnityEngine.Debug.LogWarning("Error getting companyName/findMyTag: " + ex.Message);
+                companyName = "N/A";
+            }
+
+            if(name.IsNullOrEmpty()){
+                name = "N/A";
+            }
+            if(companyName.IsNullOrEmpty()){
+                companyName = "N/A";
+            }
+            if(address.IsNullOrEmpty()){
+                address = "N/A";
+            }
+
+            binder.address.text = address;
+            binder.deviceName.text = name;
+            binder.company.text = companyName;
         }                
     }
     
@@ -116,6 +151,8 @@ public class MacUIGenerator : MonoBehaviour
 
     void Start()
     {
+        rawDataParser = gameObject.AddComponent<RawDataParser>();
+
         CreateDefaultButton();
 
         StartCoroutine(UpdateSlidersCoroutine());

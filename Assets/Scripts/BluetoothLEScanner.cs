@@ -218,7 +218,7 @@ public class BluetoothLEScanner : MonoBehaviour
                 int txPower = int.Parse(parts[3]);
                 bool isConnectable = bool.Parse(parts[4]);
 
-                Debug.Log($"Device found: {name} ({address}) RSSI: {rssi} dBm, TX Power: {txPower} dBm, Connectable: {isConnectable}");
+                // Debug.Log($"Device found: {name} ({address}) RSSI: {rssi} dBm, TX Power: {txPower} dBm, Connectable: {isConnectable}");
 
                 OnDeviceFoundEvent?.Invoke(address, name, rssi, txPower, isConnectable, deviceInfo);
             }

@@ -233,7 +233,7 @@ public class BluetoothLogger : MonoBehaviour
     }
 
 
-    public static int hash_multiplier = 7;
+    public static int hash_multiplier = 5;
     
     public static Vector3Int GetVector3Hash(Vector3 position){
         return new Vector3Int(
@@ -290,26 +290,27 @@ public class BluetoothLogger : MonoBehaviour
     
     public int GetRSSIAtPositionSampledAndFiltered(Vector3Int position, int sample_size = 5)
     {
+
+        // Just get the max datapoint for the global config.
         if(filteredAddress == "default" || string.IsNullOrEmpty(filteredAddress))
         {
             if (!_dataMap.ContainsKey(position))
                 return (int)rssi_min;
 
             List<DataPoint> dataPoints = _dataMap[position];
-            if (dataPoints.Count == 0)
-                return (int)rssi_min;
-
-            dataPoints.Sort((a, b) => a.timestamp.CompareTo(b.timestamp));
             
             int samplesToTake = Mathf.Min(sample_size, dataPoints.Count);
-            float sum = 0f;
+            int maxRssi = (int)rssi_min;
             
             for (int i = dataPoints.Count - samplesToTake; i < dataPoints.Count; i++)
             {
-                sum += dataPoints[i].rssi;
+                if (dataPoints[i].rssi > maxRssi)
+                {
+                    maxRssi = dataPoints[i].rssi;
+                }
             }
             
-            return (int)(sum / samplesToTake);
+            return maxRssi;            
         }
         else
         {
@@ -331,8 +332,6 @@ public class BluetoothLogger : MonoBehaviour
             
             if (filteredPoints.Count == 0)
                 return (int)rssi_min;
-
-            filteredPoints.Sort((a, b) => a.timestamp.CompareTo(b.timestamp));
             
             int samplesToTake = Mathf.Min(sample_size, filteredPoints.Count);
             float sum = 0f;
@@ -358,6 +357,7 @@ public class BluetoothLogger : MonoBehaviour
         foreach (var dataPoint in dataPoints){
             sum += dataPoint.rssi;
         }
+
         return (int)(sum / dataPoints.Count);
     }
 

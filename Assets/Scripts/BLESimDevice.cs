@@ -60,7 +60,6 @@ public class BLESimDevice : MonoBehaviour
 
     float getRSSI(){
         float rssi = 0;
-
         if(scanner != null){
             float distance = Vector3.Distance(transform.position, scanner.transform.position);
 

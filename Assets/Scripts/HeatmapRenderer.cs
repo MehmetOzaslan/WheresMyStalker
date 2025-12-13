@@ -8,6 +8,8 @@ public class HeatmapRenderer : MonoBehaviour
     public GameObject prefabQuad;
 
 
+    public int window = 7;
+
     public float prefabQuadScale = 0.2f;
 
     public float verticalOffset = -0.3f;
@@ -16,6 +18,9 @@ public class HeatmapRenderer : MonoBehaviour
     public float fade_distance = 0.2f;
     public AnimationCurve fade_curve = new AnimationCurve();
     
+
+    public AnimationCurve intensity_curve = new AnimationCurve();
+
     public BluetoothLogger bluetoothLogger;
     
     private Dictionary<Vector3Int, GameObject> _quadMap = new Dictionary<Vector3Int, GameObject>();
@@ -48,7 +53,7 @@ public class HeatmapRenderer : MonoBehaviour
         foreach (var quad in _quadMap){
             int rssi = bluetoothLogger.GetRSSIAtPositionFiltered(quad.Key);
             float percentRSSI = bluetoothLogger.PercentRSSI(rssi);
-            SetQuadColor(quad.Value, colorGradient.Evaluate(percentRSSI));
+            SetQuadColor(quad.Value, percentRSSI);
             Debug.Log($"HeatmapRenderer: Quad {quad.Key} has RSSI {rssi} and percent RSSI {percentRSSI}");
         }
     }
@@ -67,6 +72,7 @@ public class HeatmapRenderer : MonoBehaviour
         }
     }
 
+ 
     void Update()
     {
         if (bluetoothLogger == null) return;
@@ -86,38 +92,27 @@ public class HeatmapRenderer : MonoBehaviour
         }
 
         GameObject quad = _quadMap[currentHash];
-        int rssi = bluetoothLogger.GetRSSIAtPositionSampledAndFiltered(currentHash, 5);
+        int rssi = bluetoothLogger.GetRSSIAtPositionSampledAndFiltered(currentHash, window);
         float percentRSSI = bluetoothLogger.PercentRSSI(rssi);
-        SetQuadColor(quad, colorGradient.Evaluate(percentRSSI));
-
-
-        foreach (var q in _quadMap){
-            float distance = Vector3.Distance(transform.position, q.Value.transform.position);
-
-            if(distance > fade_distance){
-                continue;
-            }
-
-            float fade = fade_curve.Evaluate(Mathf.Clamp01(distance / fade_distance));
-
-            Color color = q.Value.GetComponent<Renderer>().material.color;
-            q.Value.GetComponent<Renderer>().material.color = color;
-            q.Value.GetComponent<Renderer>().material.SetColor("_EmissionColor", color);
-        }
+        SetQuadColor(quad, percentRSSI);
     }
     
+
     void OnDataPointLogged(DataPoint dataPoint)
     {
         Vector3 position = new Vector3(dataPoint.local_x, dataPoint.local_y, 0);
         Vector3Int hashPosition = BluetoothLogger.GetVector3Hash(position);
         
         GameObject quad = GetObjectAtPosition(position);
-        int rssi = bluetoothLogger.GetRSSIAtPositionFiltered(hashPosition);
+        int rssi = bluetoothLogger.GetRSSIAtPositionSampledAndFiltered(hashPosition, window);
         float percentRSSI = bluetoothLogger.PercentRSSI(rssi);
-        SetQuadColor(quad, colorGradient.Evaluate(percentRSSI));
+        SetQuadColor(quad, percentRSSI);
     }
     
-    void SetQuadColor(GameObject quad, Color color){
+    void SetQuadColor(GameObject quad, float percentRSSI){
+        Color color = colorGradient.Evaluate(percentRSSI);
+
+        float intensity = intensity_curve.Evaluate(percentRSSI);
         Renderer[] renderers = quad.GetComponentsInChildren<Renderer>();
         color.a = quadOpacity;
         foreach (Renderer renderer in renderers)
@@ -125,7 +120,7 @@ public class HeatmapRenderer : MonoBehaviour
             if (renderer != null)
             {
                 renderer.material.color = color;
-                renderer.material.SetColor("_EmissionColor", color * 2);
+                renderer.material.SetColor("_EmissionColor", color*intensity);
 
                 if (!renderer.material.IsKeywordEnabled("_EMISSION"))
                     renderer.material.EnableKeyword("_EMISSION");
