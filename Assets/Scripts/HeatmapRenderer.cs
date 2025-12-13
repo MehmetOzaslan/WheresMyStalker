@@ -118,12 +118,18 @@ public class HeatmapRenderer : MonoBehaviour
     }
     
     void SetQuadColor(GameObject quad, Color color){
-        Renderer renderer = quad.GetComponent<Renderer>();
-        if (renderer != null)
+        Renderer[] renderers = quad.GetComponentsInChildren<Renderer>();
+        color.a = quadOpacity;
+        foreach (Renderer renderer in renderers)
         {
-            color.a = quadOpacity;
-            renderer.material.color = color;
-            renderer.material.SetColor("_EmissionColor", color);
+            if (renderer != null)
+            {
+                renderer.material.color = color;
+                renderer.material.SetColor("_EmissionColor", color * 2);
+
+                if (!renderer.material.IsKeywordEnabled("_EMISSION"))
+                    renderer.material.EnableKeyword("_EMISSION");
+            }
         }
     }
     

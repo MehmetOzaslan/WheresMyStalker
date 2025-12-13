@@ -71,7 +71,8 @@ public class PointRendererController : MonoBehaviour{
         {
             writeHead = 0;
         }
-        pointsCPU[writeHead] = new PointStruct{position = new Vector3(dataPoint.local_x, dataPoint.local_y, dataPoint.local_z), signalStrength = bluetoothLogger.PercentRSSI(dataPoint.rssi), mac_indexed_id = bluetoothLogger.mac_id_map[dataPoint.address], timestamp = (float)dataPoint.timestamp};
+        int macId = bluetoothLogger._addressMap.ContainsKey(dataPoint.point_id) ? bluetoothLogger._addressMap[dataPoint.point_id] : -1;
+        pointsCPU[writeHead] = new PointStruct{position = new Vector3(dataPoint.local_x, dataPoint.local_y, dataPoint.local_z), signalStrength = bluetoothLogger.PercentRSSI(dataPoint.rssi), mac_indexed_id = macId, timestamp = (float)dataPoint.timestamp};
         writeHead++;
         pointCount++;
     }

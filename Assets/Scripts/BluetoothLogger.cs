@@ -6,8 +6,6 @@ using System.IO;
 
 public struct DataPoint{
     public uint point_id;
-    public string address;
-    public string name;
     public int rssi;
     public int txPower;
     public bool isConnectable;
@@ -17,8 +15,8 @@ public struct DataPoint{
     public double latitude;
     public double longitude;
     public double timestamp;
-    public string rawData; // This is actually disgusting
 }
+
 
 // Logs data continously and publishes to the datamap. 
 // Data is also published in the OnDataPointLoggedEvent.
@@ -26,9 +24,25 @@ public class BluetoothLogger : MonoBehaviour
 {
     [Header("Bluetooth Scanner")]
     public BluetoothLEScanner scanner; 
+
     public Dictionary<Vector3Int, List<DataPoint>> _dataMap = new Dictionary<Vector3Int, List<DataPoint>>();
-    public Dictionary<string, int> mac_id_map = new Dictionary<string, int>(); // TODO: Convert DataPoint to use proper indexing rather than raw strings.
-    public Dictionary<string, string> address_name_map = new Dictionary<string, string>();
+
+    public Dictionary<uint, string> _rawDataMap = new Dictionary<uint, string>();
+
+    // packet id -> mac id
+    public Dictionary<uint, int> _addressMap = new Dictionary<uint, int>();
+
+    // mac id -> name
+    public Dictionary<int, string> _nameMap = new Dictionary<int, string>();
+
+
+    // mac id -> mac string
+    public Dictionary<int, string> id_mac_map = new Dictionary<int, string>();
+
+    // mac string -> mac id
+    public Dictionary<string, int> mac_id_map = new Dictionary<string, int>();
+
+
 
     // this is fairly nasty
     public Dictionary<string, List<string>> address_raw_data_map = new Dictionary<string, List<string>>();
@@ -38,8 +52,11 @@ public class BluetoothLogger : MonoBehaviour
     public event Action<String> OnFilteredAddressChangedEvent;
 
 
-
     public string filteredAddress = "default";
+
+    public string GetAddressFromMacId(int macId){
+        return id_mac_map.ContainsKey(macId) ? id_mac_map[macId] : null;
+    }
 
     public void OnMACSelected(string address){
         Debug.Log($"BluetoothLogger: MAC {address} selected");
@@ -62,7 +79,9 @@ public class BluetoothLogger : MonoBehaviour
             foreach (var dataPoint in data.Value){
                 using (StreamWriter writer = new StreamWriter(filePath, true))
                 {   
-                    writer.WriteLine($"{dataPoint.address},{dataPoint.name},{dataPoint.rssi},{dataPoint.txPower},{dataPoint.isConnectable},{dataPoint.local_x},{dataPoint.local_y},{dataPoint.local_z},{dataPoint.latitude},{dataPoint.longitude},{dataPoint.timestamp},{dataPoint.rawData}");
+                    int macId = _addressMap[dataPoint.point_id];
+                    string address = GetAddressFromMacId(macId);
+                    writer.WriteLine($"{address},{_nameMap[macId]},{dataPoint.rssi},{dataPoint.txPower},{dataPoint.isConnectable},{dataPoint.local_x},{dataPoint.local_y},{dataPoint.local_z},{dataPoint.latitude},{dataPoint.longitude},{dataPoint.timestamp},{_rawDataMap[dataPoint.point_id]}");
                 }
             }
         }
@@ -159,22 +178,28 @@ public class BluetoothLogger : MonoBehaviour
 
     static uint point_id_counter = 0;
 
-
-
+    private void RegisterMacAddress(string address, out int macId)
+    {
+        if (!mac_id_map.TryGetValue(address, out macId))
+        {
+            macId = mac_id_map.Count;
+            mac_id_map[address] = macId;
+            id_mac_map[macId] = address;
+        }
+    }
 
     public void OnDeviceUpdate(string address, string name, int rssi, int txPower, bool isConnectable, string rawData){
         DataPoint dataPoint = new DataPoint();
         dataPoint.point_id = point_id_counter++;
-        dataPoint.address = address;
-        dataPoint.name = name;
         dataPoint.rssi = rssi;
         dataPoint.txPower = txPower;
         dataPoint.isConnectable = isConnectable;
         dataPoint.local_x = transform.position.x;
         dataPoint.local_y = transform.position.y;
         dataPoint.local_z = transform.position.z;
-        dataPoint.rawData = rawData;
-        
+        _rawDataMap[dataPoint.point_id] = rawData;
+
+
         if (Input.location.status == LocationServiceStatus.Running)
         {
             dataPoint.latitude = Input.location.lastData.latitude;
@@ -195,10 +220,13 @@ public class BluetoothLogger : MonoBehaviour
         }
         _dataMap[position].Add(dataPoint);
 
-        if(!mac_id_map.ContainsKey(address))
-        {
-            mac_id_map[address] = mac_id_map.Count;
-        }
+        // Register address and get macId
+        RegisterMacAddress(address, out int macId);
+        _addressMap[dataPoint.point_id] = macId;
+        
+        // Populate name map (mac_id -> name)
+        _nameMap[macId] = name;
+        
         OnDataPointLoggedEvent?.Invoke(dataPoint);
             
         // Debug.Log($"BluetoothLogger: OnDeviceUpdate {address} {name} {rssi} {txPower} {isConnectable}");
@@ -239,11 +267,16 @@ public class BluetoothLogger : MonoBehaviour
             return (int)rssi_min;
         }
 
+        if (!mac_id_map.ContainsKey(address)){
+            return (int)rssi_min;
+        }
+        int targetMacId = mac_id_map[address];
+
         List<DataPoint> dataPoints = _dataMap[position];
         float sum = 0;
         int count = 0;
         foreach (var dataPoint in dataPoints){
-            if (dataPoint.address == address){
+            if (_addressMap[dataPoint.point_id] == targetMacId){
                 sum += dataPoint.rssi;
                 count++;
             }
@@ -283,10 +316,14 @@ public class BluetoothLogger : MonoBehaviour
             if (!_dataMap.ContainsKey(position))
                 return (int)rssi_min;
 
+            if (!mac_id_map.ContainsKey(filteredAddress))
+                return (int)rssi_min;
+            int targetMacId = mac_id_map[filteredAddress];
+
             List<DataPoint> filteredPoints = new List<DataPoint>();
             foreach (var dataPoint in _dataMap[position])
             {
-                if (dataPoint.address == filteredAddress)
+                if (_addressMap[dataPoint.point_id] == targetMacId)
                 {
                     filteredPoints.Add(dataPoint);
                 }
@@ -326,11 +363,16 @@ public class BluetoothLogger : MonoBehaviour
 
     public int GetAverageSpecificRSSI(string address){
 
+        if (!mac_id_map.ContainsKey(address)){
+            return (int)rssi_min;
+        }
+        int targetMacId = mac_id_map[address];
+
         float sum = 0;
         int count = 0;
         foreach (var data in _dataMap){
             foreach (var dataPoint in data.Value){
-                if (dataPoint.address == address){
+                if (_addressMap[dataPoint.point_id] == targetMacId){
                     sum += dataPoint.rssi;
                     count++;
                 }
@@ -344,11 +386,16 @@ public class BluetoothLogger : MonoBehaviour
     }
 
     public int GetAverageSpecificRSSISampled(string address, int sample_size = 5){
+        if (!mac_id_map.ContainsKey(address)){
+            return (int)rssi_min;
+        }
+        int targetMacId = mac_id_map[address];
+
         List<DataPoint> matchingPoints = new List<DataPoint>();
         
         foreach (var data in _dataMap){
             foreach (var dataPoint in data.Value){
-                if (dataPoint.address == address){
+                if (_addressMap[dataPoint.point_id] == targetMacId){
                     matchingPoints.Add(dataPoint);
                 }
             }

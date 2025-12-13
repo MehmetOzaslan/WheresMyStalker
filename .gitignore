@@ -116,8 +116,5 @@ crashlytics-build.properties
 # Unity XR Content
 /[Aa]ssets/[Uu]nityXRContent/
 
-# Data files
-data.csv
-
 
 
