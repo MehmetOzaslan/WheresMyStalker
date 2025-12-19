@@ -6,7 +6,6 @@ using System;
 using System.Collections;
 using System.Diagnostics.Tracing;
 using UnityEngine.Rendering.Universal;
-using Unity.Tutorials.Core.Editor;
 
 
 
@@ -109,13 +108,13 @@ public class MacUIGenerator : MonoBehaviour
                 companyName = "N/A";
             }
 
-            if(name.IsNullOrEmpty()){
+            if(string.IsNullOrEmpty(name)){
                 name = "N/A";
             }
-            if(companyName.IsNullOrEmpty()){
+            if(string.IsNullOrEmpty(companyName)){
                 companyName = "N/A";
             }
-            if(address.IsNullOrEmpty()){
+            if(string.IsNullOrEmpty(address)){
                 address = "N/A";
             }
 

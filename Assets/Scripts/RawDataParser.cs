@@ -1,6 +1,5 @@
 using UnityEngine;
 using System.Collections.Generic;
-using System.IO;
 
 public class RawDataParser : MonoBehaviour
 {
@@ -33,10 +32,10 @@ public class RawDataParser : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {        
-        string filePath = Application.dataPath + "/OfflineAnalysis/data/company_id_easyparse.csv";
-        if (File.Exists(filePath))
+        TextAsset csvFile = Resources.Load<TextAsset>("company_id_easyparse");
+        if (csvFile != null)
         {
-            string[] lines = File.ReadAllLines(filePath);
+            string[] lines = csvFile.text.Split(new char[] { '\n', '\r' }, System.StringSplitOptions.RemoveEmptyEntries);
             foreach (string line in lines)
             {
                 if (string.IsNullOrWhiteSpace(line)) continue;
@@ -54,7 +53,7 @@ public class RawDataParser : MonoBehaviour
         }
         else
         {
-            Debug.LogWarning("CSV file not found: " + filePath);
+            Debug.LogWarning("CSV file not found in Resources: company_id_easyparse");
         }
     }
 
