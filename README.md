@@ -30,6 +30,6 @@ The main camera (the actual AR <-> scene mapping) is also renderred into a rende
 Just as a heads up, the render textures are made dynamically because they need to be addressable.
 
 
-# Usage
+# Usage Demo
 
 <img width="1080" height="2400" alt="Screenshot_20251218-232328" src="https://github.com/user-attachments/assets/09397200-bb96-4c65-9213-03618449440f" />
